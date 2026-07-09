@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import {
   signUp as cognitoSignUp,
   signIn as cognitoSignIn,
@@ -7,6 +7,7 @@ import {
   confirmSignUp as cognitoConfirmSignUp,
   forgotPassword as cognitoForgotPassword,
   confirmForgotPassword as cognitoConfirmForgotPassword,
+  resendConfirmationCode as cognitoResendConfirmationCode,
   AuthUser,
 } from '../services/cognitoService';
 import { tokenManager, setTokens, clearTokens, isAuthenticated } from '../services/tokenService';
@@ -20,6 +21,7 @@ interface AuthContextType {
   // Auth methods
   signUp: (email: string, password: string, name: string) => Promise<void>;
   confirmSignUp: (email: string, code: string) => Promise<void>;
+  resendConfirmationCode: (email: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
@@ -69,7 +71,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, name: string) => {
@@ -90,6 +94,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setError(null);
     try {
       await cognitoConfirmSignUp(email, code);
+    } catch (err: any) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const resendConfirmationCode = useCallback(async (email: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await cognitoResendConfirmationCode(email);
     } catch (err: any) {
       setError(err.message);
       throw err;
@@ -164,6 +181,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     error,
     signUp,
     confirmSignUp,
+    resendConfirmationCode,
     signIn,
     signOut,
     forgotPassword,

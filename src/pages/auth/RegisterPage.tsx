@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Loader2, Shield, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Shield, CheckCircle, Mail } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const { signUp, confirmSignUp, isLoading, error, clearError } = useAuth();
+  const { signUp, confirmSignUp, resendConfirmationCode, isLoading, error, clearError } = useAuth();
   
   const [step, setStep] = useState<'form' | 'verify'>('form');
   const [email, setEmail] = useState('');
@@ -15,6 +15,16 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
+  const [resendSuccess, setResendSuccess] = useState(false);
+
+  // Kiểm tra sessionStorage khi component mount
+  useEffect(() => {
+    const pendingEmail = sessionStorage.getItem('pendingVerification');
+    if (pendingEmail) {
+      setEmail(pendingEmail);
+      setStep('verify');
+    }
+  }, []);
 
   const validatePassword = (pwd: string) => {
     const errors = [];
@@ -49,6 +59,7 @@ export default function RegisterPage() {
 
     try {
       await signUp(email, password, name);
+      sessionStorage.setItem('pendingVerification', email);
       setStep('verify');
     } catch (err: any) {
       setFormError(err.message || 'Đăng ký thất bại');
@@ -67,9 +78,24 @@ export default function RegisterPage() {
 
     try {
       await confirmSignUp(email, verificationCode);
+      sessionStorage.removeItem('pendingVerification');
       navigate('/login', { replace: true });
     } catch (err: any) {
       setFormError(err.message || 'Xác nhận thất bại');
+    }
+  };
+
+  const handleResendCode = async () => {
+    setFormError('');
+    clearError();
+    setResendSuccess(false);
+    
+    try {
+      await resendConfirmationCode(email);
+      setResendSuccess(true);
+      setTimeout(() => setResendSuccess(false), 5000);
+    } catch (err: any) {
+      setFormError(err.message || 'Gửi lại mã thất bại');
     }
   };
 
@@ -223,6 +249,12 @@ export default function RegisterPage() {
                 </div>
               )}
 
+              {resendSuccess && (
+                <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-600">Đã gửi mã xác nhận mới. Vui lòng kiểm tra email.</p>
+                </div>
+              )}
+
               <form onSubmit={handleVerify} className="space-y-4">
                 <div>
                   <label htmlFor="code" className="block text-sm font-medium text-gray-700 mb-2">
@@ -258,8 +290,18 @@ export default function RegisterPage() {
 
               <button
                 type="button"
+                onClick={handleResendCode}
+                disabled={isLoading}
+                className="w-full flex items-center justify-center gap-2 text-primary-600 hover:text-primary-700 font-medium py-2 mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Mail className="w-4 h-4" />
+                Gửi lại mã xác nhận
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setStep('form')}
-                className="w-full text-primary-600 hover:text-primary-700 font-medium py-2 mt-4"
+                className="w-full text-gray-500 hover:text-gray-700 font-medium py-2 mt-2"
               >
                 Quay lại
               </button>

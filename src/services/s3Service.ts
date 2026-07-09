@@ -1,7 +1,6 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { awsConfig } from '../config/aws';
-import { getAccessToken } from './tokenService';
 
 // Khởi tạo S3 Client
 const s3Client = new S3Client({
@@ -132,8 +131,7 @@ export async function uploadFileToS3(
  */
 export async function uploadFileWithSDK(
   file: File,
-  folder: string = 'samples',
-  onProgress?: (progress: number) => void
+  folder: string = 'samples'
 ): Promise<{ key: string; etag: string }> {
   const timestamp = Date.now();
   const key = `${folder}/${timestamp}_${file.name}`;

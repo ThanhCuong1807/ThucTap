@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Shield, 
@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import FileUpload from '../components/FileUpload';
-import { listFiles, formatFileSize, getPresignedDownloadUrl } from '../services/s3Service';
 
 interface AnalysisResult {
   id: string;
@@ -24,7 +23,8 @@ interface AnalysisResult {
   threatType?: string;
 }
 
-// Mock data for demo
+// TODO: Backend - Thay thế bằng API call thật
+// Ví dụ: const results = await analysisService.getHistory(userId);
 const mockResults: AnalysisResult[] = [
   {
     id: '1',
@@ -53,8 +53,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const { user, signOut, isLoading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'upload' | 'history'>('upload');
-  const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>(mockResults);
-  const [isLoading, setIsLoading] = useState(false);
+  const [analysisResults] = useState<AnalysisResult[]>(mockResults);
 
   useEffect(() => {
     if (!authLoading && !user) {

@@ -10,20 +10,21 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.0",
     "@aws-sdk/client-cognito-identity": "^3.490.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.1083.0",
     "@aws-sdk/client-s3": "^3.490.0",
     "@aws-sdk/credential-provider-cognito-identity": "^3.490.0",
     "@aws-sdk/s3-request-presigner": "^3.490.0",
     "js-cookie": "^3.0.5",
-    "lucide-react": "^0.312.0"
+    "lucide-react": "^0.312.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.0"
   },
   "devDependencies": {
+    "@types/js-cookie": "^3.0.6",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
-    "@types/js-cookie": "^3.0.6",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
     "@vitejs/plugin-react": "^4.2.1",

@@ -1,6 +1,6 @@
-import React, { useState, useCallback } from 'react';
-import { Upload, File, X, Loader2, CheckCircle, AlertCircle, Shield } from 'lucide-react';
-import { uploadFileToS3 } from '../../services/s3Service';
+import { useState, useCallback } from 'react';
+import { Upload, File, X, CheckCircle, AlertCircle, Shield } from 'lucide-react';
+import { uploadFileToS3 } from '../services/s3Service';
 
 interface UploadedFile {
   id: string;

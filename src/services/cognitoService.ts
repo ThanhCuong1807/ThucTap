@@ -2,8 +2,6 @@ import {
   CognitoIdentityProviderClient,
   SignUpCommand,
   ConfirmSignUpCommand,
-  SignInCommand,
-  SignOutCommand,
   GetUserCommand,
   ForgotPasswordCommand,
   ConfirmForgotPasswordCommand,
@@ -87,6 +85,7 @@ export async function signIn(data: SignInData): Promise<{
   refreshToken: string;
 }> {
   try {
+    // Thử USER_PASSWORD_AUTH trước
     const command = new InitiateAuthCommand({
       AuthFlow: AuthFlowType.USER_PASSWORD_AUTH,
       ClientId: awsConfig.userPoolWebClientId,
@@ -115,6 +114,9 @@ export async function signIn(data: SignInData): Promise<{
     }
     if (error.name === 'UserNotConfirmedException') {
       throw new Error('Tài khoản chưa được xác nhận. Vui lòng kiểm tra email.');
+    }
+    if (error.name === 'UnknownEndpoint') {
+      throw new Error('Không thể kết nối đến AWS. Vui lòng kiểm tra kết nối mạng.');
     }
     
     throw new Error(error.message || 'Đăng nhập thất bại');
@@ -171,7 +173,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     const response = await cognitoClient.send(command);
     
     const userAttr = response.UserAttributes || [];
-    const getAttr = (name: string) => userAttr.find(a => a.Name === name)?.Value || '';
+    const getAttr = (name: string) => userAttr.find(attr => attr.Name === name)?.Value || '';
     
     return {
       email: getAttr('email'),

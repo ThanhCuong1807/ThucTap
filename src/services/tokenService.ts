@@ -1,5 +1,5 @@
 import Cookies from 'js-cookie';
-import { getStoredTokens, isTokenValid, refreshTokens } from './cognitoService';
+import { refreshTokens } from './cognitoService';
 
 // Cookie configuration
 const TOKEN_COOKIE_OPTIONS = {
