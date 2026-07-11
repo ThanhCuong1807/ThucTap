@@ -82,17 +82,16 @@ export async function getPresignedDownloadUrl(key: string): Promise<string> {
  */
 export async function uploadFileToS3(
   file: File,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  uploadUrl?: string
 ): Promise<{ key: string; etag: string }> {
   try {
-    // Lấy presigned URL
-    const { uploadUrl, key } = await getPresignedUploadUrl(
+    const targetUrl = uploadUrl || (await getPresignedUploadUrl(
       file.name,
       file.type,
       'samples'
-    );
+    )).uploadUrl;
 
-    // Upload sử dụng fetch với progress tracking
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
 
@@ -106,7 +105,7 @@ export async function uploadFileToS3(
       xhr.addEventListener('load', () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           const etag = xhr.getResponseHeader('ETag') || '';
-          resolve({ key, etag });
+          resolve({ key: '', etag });
         } else {
           reject(new Error(`Upload failed with status ${xhr.status}`));
         }
@@ -116,7 +115,7 @@ export async function uploadFileToS3(
         reject(new Error('Upload failed'));
       });
 
-      xhr.open('PUT', uploadUrl);
+      xhr.open('PUT', targetUrl);
       xhr.setRequestHeader('Content-Type', file.type);
       xhr.send(file);
     });

@@ -1,0 +1,93 @@
+{
+  "Comment": "Malware analysis state machine with retry logic",
+  "StartAt": "ValidateUpload",
+  "States": {
+    "ValidateUpload": {
+      "Type": "Task",
+      "Resource": "${ValidateFunctionArn}",
+      "Next": "RunAnalysis",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.Timeout", "Lambda.ServiceException", "Lambda.AWSLambdaException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "Next": "AnalysisFailed" }
+      ]
+    },
+    "RunAnalysis": {
+      "Type": "Task",
+      "Resource": "${RunAnalysisFunctionArn}",
+      "Next": "UpdateResult",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.Timeout", "Lambda.ServiceException", "Lambda.AWSLambdaException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        { "ErrorEquals": ["States.ALL"], "Next": "AnalysisFailed" }
+      ]
+    },
+    "UpdateResult": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "${ResultsTableName}",
+        "Key": {
+          "fileId": { "S.$": "$.fileId" }
+        },
+        "UpdateExpression": "SET #status = :status, threatLevel = :threatLevel, threatType = :threatType, updatedAt = :updatedAt",
+        "ExpressionAttributeNames": { "#status": "status" },
+        "ExpressionAttributeValues": {
+          ":status":       { "S.$": "$.status" },
+          ":threatLevel":  { "S.$": "$.threatLevel" },
+          ":threatType":   { "S.$": "$.threatType" },
+          ":updatedAt":    { "S.$": "$$.State.EnteredTime" }
+        }
+      },
+      "ResultPath": "$.dynamoResult",
+      "Next": "ClassifyResult",
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "AnalysisFailed" }]
+    },
+    "ClassifyResult": {
+      "Type": "Choice",
+      "Choices": [
+        { "Variable": "$.threatLevel", "StringEquals": "safe",     "Next": "AnalysisSafe" },
+        { "Variable": "$.threatLevel", "StringEquals": "critical", "Next": "AnalysisCritical" }
+      ],
+      "Default": "AnalysisCompleted"
+    },
+    "AnalysisSafe": {
+      "Type": "Pass",
+      "Result": { "status": "completed", "severity": "info",     "notify": false },
+      "ResultPath": "$.classification",
+      "Next": "NotifyUser"
+    },
+    "AnalysisCompleted": {
+      "Type": "Pass",
+      "Result": { "status": "completed", "severity": "warning",  "notify": true },
+      "ResultPath": "$.classification",
+      "Next": "NotifyUser"
+    },
+    "AnalysisCritical": {
+      "Type": "Pass",
+      "Result": { "status": "malware",   "severity": "critical", "notify": true },
+      "ResultPath": "$.classification",
+      "Next": "NotifyUser"
+    },
+    "NotifyUser": {
+      "Type": "Task",
+      "Resource": "${NotifyFunctionArn}",
+      "Next": "AnalysisSucceeded",
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "Next": "AnalysisFailed" }]
+    },
+    "AnalysisSucceeded": { "Type": "Succeed" },
+    "AnalysisFailed":    { "Type": "Fail",   "Cause": "Analysis pipeline failed" }
+  }
+}

@@ -13,53 +13,62 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import FileUpload from '../components/FileUpload';
+import { backendApi } from '../services/backendApi';
 
 interface AnalysisResult {
   id: string;
+  fileId?: string;
   fileName: string;
   status: 'pending' | 'scanning' | 'completed' | 'malware';
-  uploadTime: Date;
+  uploadTime: Date | string;
   threatLevel?: 'safe' | 'low' | 'medium' | 'high' | 'critical';
   threatType?: string;
+  fileSize?: number;
 }
-
-// TODO: Backend - Thay thế bằng API call thật
-// Ví dụ: const results = await analysisService.getHistory(userId);
-const mockResults: AnalysisResult[] = [
-  {
-    id: '1',
-    fileName: 'sample_malware.exe',
-    status: 'malware',
-    uploadTime: new Date(Date.now() - 3600000),
-    threatLevel: 'critical',
-    threatType: 'Trojan.Generic',
-  },
-  {
-    id: '2',
-    fileName: 'clean_app.dll',
-    status: 'completed',
-    uploadTime: new Date(Date.now() - 7200000),
-    threatLevel: 'safe',
-  },
-  {
-    id: '3',
-    fileName: 'suspicious_script.ps1',
-    status: 'scanning',
-    uploadTime: new Date(Date.now() - 1800000),
-  },
-];
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { user, signOut, isLoading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'upload' | 'history'>('upload');
-  const [analysisResults] = useState<AnalysisResult[]>(mockResults);
+  const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/login');
     }
   }, [user, authLoading, navigate]);
+
+  useEffect(() => {
+    if (activeTab === 'history') {
+      loadHistory();
+      const interval = setInterval(loadHistory, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
+
+  const loadHistory = async () => {
+    setIsLoadingHistory(true);
+    try {
+      const data = await backendApi.getHistory();
+      setAnalysisResults(
+        (data.items || []).map(item => ({
+          id: String(item.id || ''),
+          fileId: item.fileId ? String(item.fileId) : undefined,
+          fileName: String(item.fileName || 'Unknown'),
+          status: item.status || 'pending',
+          uploadTime: item.uploadTime ? new Date(item.uploadTime) : new Date(),
+          threatLevel: item.threatLevel || 'safe',
+          threatType: item.threatType || '',
+          fileSize: item.fileSize || 0,
+        }))
+      );
+    } catch (error) {
+      console.error('Failed to load history:', error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -80,9 +89,10 @@ export default function DashboardPage() {
   };
 
   const getThreatBadge = (level?: AnalysisResult['threatLevel']) => {
-    if (!level) return null;
+    const levelStr = String(level ?? '');
+    if (!levelStr || levelStr === 'undefined' || levelStr === 'null') return null;
     
-    const styles = {
+    const styles: Record<string, string> = {
       safe: 'bg-green-100 text-green-700',
       low: 'bg-yellow-100 text-yellow-700',
       medium: 'bg-orange-100 text-orange-700',
@@ -90,18 +100,24 @@ export default function DashboardPage() {
       critical: 'bg-red-600 text-white',
     };
 
+    const displayText = levelStr === 'critical' ? 'NGUY HIỂM' : levelStr.toUpperCase();
+    const style = styles[levelStr] || 'bg-gray-100 text-gray-700';
+
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[level]}`}>
-        {level === 'critical' ? 'NGUY HIỂM' : level.toUpperCase()}
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${style}`}>
+        {displayText}
       </span>
     );
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string | undefined | null) => {
+    if (!date) return '-';
+    const d = date instanceof Date ? date : new Date(date);
+    if (isNaN(d.getTime())) return '-';
     return new Intl.DateTimeFormat('vi-VN', {
       dateStyle: 'medium',
       timeStyle: 'short',
-    }).format(date);
+    }).format(d);
   };
 
   if (authLoading) {
@@ -203,7 +219,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900">
-                  {analysisResults.filter(r => r.status === 'scanning').length}
+                  {analysisResults.filter(r => r.status === 'scanning' || r.status === 'pending').length}
                 </p>
                 <p className="text-sm text-gray-500">Đang quét</p>
               </div>
@@ -243,7 +259,12 @@ export default function DashboardPage() {
               <FileUpload />
             ) : (
               <div className="space-y-4">
-                {analysisResults.length === 0 ? (
+                {isLoadingHistory && analysisResults.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary-600 mx-auto mb-4" />
+                    <p className="text-gray-500">Đang tải lịch sử...</p>
+                  </div>
+                ) : analysisResults.length === 0 ? (
                   <div className="text-center py-12">
                     <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                     <p className="text-gray-500">Chưa có file nào được phân tích</p>
