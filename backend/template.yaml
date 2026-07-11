@@ -1,0 +1,330 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Malware Detection Backend - Serverless API with S3 event processing, SQS queue, and Step Functions
+
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 512
+    Runtime: nodejs18.x
+    Tracing: Active
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment environment
+
+  S3BucketName:
+    Type: String
+    Default: malware-analysis-bucket
+    Description: S3 bucket for malware samples
+
+Resources:
+  # S3 Bucket for malware samples
+  MalwareAnalysisBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${S3BucketName}-${Environment}'
+      VersioningConfiguration:
+        Status: Enabled
+      ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # SQS Queue for handling concurrent uploads
+  AnalysisQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'malware-analysis-queue-${Environment}'
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 86400
+      RedrivePolicy:
+        DeadLetterTargetArn: !GetAtt AnalysisDeadLetterQueue.Arn
+        MaxReceiveCount: 3
+
+  # Dead Letter Queue for failed messages
+  AnalysisDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'malware-analysis-dlq-${Environment}'
+      MessageRetentionPeriod: 1209600
+
+  # DynamoDB table for analysis results
+  AnalysisResultsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'malware-analysis-results-${Environment}'
+      AttributeDefinitions:
+        - AttributeName: fileId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: fileId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: userId-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      BillingMode: PAY_PER_REQUEST
+
+  # Step Functions State Machine for analysis workflow
+  AnalysisStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub 'malware-analysis-workflow-${Environment}'
+      DefinitionUri: src/statemachine/analysis-workflow.asl.json
+      DefinitionSubstitutions:
+        AnalysisQueueArn: !GetAtt AnalysisQueue.Arn
+        ResultsTableName: !Ref AnalysisResultsTable
+        S3BucketName: !Ref MalwareAnalysisBucket
+        ValidateFunctionArn: !GetAtt ValidateUploadFunction.Arn
+        RunAnalysisFunctionArn: !GetAtt RunAnalysisFunction.Arn
+        NotifyFunctionArn: !GetAtt NotifyUserFunction.Arn
+      Policies:
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt AnalysisQueue.QueueName
+        - S3ReadPolicy:
+            BucketName: !Ref MalwareAnalysisBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnalysisResultsTable
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ValidateUploadFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref RunAnalysisFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref NotifyUserFunction
+
+  # API Gateway
+  MalwareDetectionApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub 'malware-detection-api-${Environment}'
+      StageName: !Ref Environment
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: "'*'"
+      UsagePlan:
+        CreateUsagePlan:
+          Name: !Sub 'malware-detection-usage-plan-${Environment}'
+          Throttle:
+            RateLimit: 100
+            BurstLimit: 100
+          Quota:
+            Limit: 10000
+            Period: DAY
+
+  # Lambda Functions
+
+  # API Lambda - Upload file and create analysis
+  UploadFileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'malware-analysis-upload-${Environment}'
+      CodeUri: src/functions/upload
+      Handler: app.handler
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref MalwareAnalysisBucket
+        - S3WritePolicy:
+            BucketName: !Ref MalwareAnalysisBucket
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt AnalysisQueue.QueueName
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnalysisResultsTable
+        - StepFunctionsExecutionPolicy:
+            StateMachineName: !Ref AnalysisStateMachine
+      Environment:
+        Variables:
+          ANALYSIS_QUEUE_URL: !Ref AnalysisQueue
+          RESULTS_TABLE: !Ref AnalysisResultsTable
+          S3_BUCKET_NAME: !Ref MalwareAnalysisBucket
+          STATE_MACHINE_ARN: !Ref AnalysisStateMachine
+      Events:
+        UploadEndpoint:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MalwareDetectionApi
+            Path: /upload
+            Method: post
+
+  # API Lambda - Get analysis results
+  GetResultsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'malware-analysis-results-${Environment}'
+      CodeUri: src/functions/results
+      Handler: app.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref AnalysisResultsTable
+      Environment:
+        Variables:
+          RESULTS_TABLE: !Ref AnalysisResultsTable
+      Events:
+        GetResultsEndpoint:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MalwareDetectionApi
+            Path: /get-result/{fileId}
+            Method: get
+
+  # API Lambda - List user analysis history
+  ListHistoryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'malware-analysis-history-${Environment}'
+      CodeUri: src/functions/history
+      Handler: app.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref AnalysisResultsTable
+      Environment:
+        Variables:
+          RESULTS_TABLE: !Ref AnalysisResultsTable
+      Events:
+        HistoryEndpoint:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MalwareDetectionApi
+            Path: /history
+            Method: get
+
+  # S3 Event Handler - Auto report new files and trigger workflow
+  S3UploadHandlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'malware-analysis-s3-handler-${Environment}'
+      CodeUri: src/functions/s3Handler
+      Handler: app.handler
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref MalwareAnalysisBucket
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt AnalysisQueue.QueueName
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnalysisResultsTable
+        - StepFunctionsStartExecutionPolicy:
+            StateMachineName: !Ref AnalysisStateMachine
+      Environment:
+        Variables:
+          ANALYSIS_QUEUE_URL: !Ref AnalysisQueue
+          RESULTS_TABLE: !Ref AnalysisResultsTable
+          S3_BUCKET_NAME: !Ref MalwareAnalysisBucket
+          STATE_MACHINE_ARN: !Ref AnalysisStateMachine
+      Events:
+        S3UploadEvent:
+          Type: S3
+          Properties:
+            Bucket: !Ref MalwareAnalysisBucket
+            Events: s3:ObjectCreated:Put
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: samples/
+
+  # SQS Queue Processor - Process analysis queue
+  AnalysisQueueProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'malware-analysis-processor-${Environment}'
+      CodeUri: src/functions/processor
+      Handler: app.handler
+      Policies:
+        - SQSExecutePolicy:
+            QueueName: !GetAtt AnalysisQueue.QueueName
+        - S3ReadPolicy:
+            BucketName: !Ref MalwareAnalysisBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AnalysisResultsTable
+        - StepFunctionsStartExecutionPolicy:
+            StateMachineName: !Ref AnalysisStateMachine
+      Environment:
+        Variables:
+          ANALYSIS_QUEUE_URL: !Ref AnalysisQueue
+          RESULTS_TABLE: !Ref AnalysisResultsTable
+          S3_BUCKET_NAME: !Ref MalwareAnalysisBucket
+          STATE_MACHINE_ARN: !Ref AnalysisStateMachine
+      Events:
+        QueueProcessing:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt AnalysisQueue.Arn
+            BatchSize: 10
+
+  # Step Function helper - Validate uploaded sample
+  ValidateUploadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'malware-analysis-validate-${Environment}'
+      CodeUri: src/functions/validateUpload
+      Handler: app.handler
+      MemorySize: 256
+      Timeout: 30
+      Environment:
+        Variables:
+          RESULTS_TABLE: !Ref AnalysisResultsTable
+          FILE_BUCKET: !Ref MalwareAnalysisBucket
+
+  # Step Function helper - Run actual analysis (heuristic scan)
+  RunAnalysisFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'malware-analysis-run-${Environment}'
+      CodeUri: src/functions/runAnalysis
+      Handler: app.handler
+      MemorySize: 512
+      Timeout: 60
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref MalwareAnalysisBucket
+
+  # Step Function helper - Notify user (SNS optional)
+  NotifyUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'malware-analysis-notify-${Environment}'
+      CodeUri: src/functions/notifyUser
+      Handler: app.handler
+      MemorySize: 256
+      Timeout: 30
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway URL
+    Value: !Sub 'https://${MalwareDetectionApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+
+  S3Bucket:
+    Description: S3 bucket for malware samples
+    Value: !Ref MalwareAnalysisBucket
+
+  AnalysisQueueUrl:
+    Description: SQS Queue URL
+    Value: !Ref AnalysisQueue
+
+  AnalysisQueueArn:
+    Description: SQS Queue ARN
+    Value: !GetAtt AnalysisQueue.Arn
+
+  StateMachineArn:
+    Description: Step Functions State Machine ARN
+    Value: !Ref AnalysisStateMachine
+
+  ResultsTable:
+    Description: DynamoDB results table name
+    Value: !Ref AnalysisResultsTable

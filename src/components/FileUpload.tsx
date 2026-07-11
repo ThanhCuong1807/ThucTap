@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Upload, File, X, CheckCircle, AlertCircle, Shield } from 'lucide-react';
 import { uploadFileToS3 } from '../services/s3Service';
+import { backendApi } from '../services/backendApi';
 
 interface UploadedFile {
   id: string;
@@ -9,6 +10,7 @@ interface UploadedFile {
   status: 'uploading' | 'success' | 'error';
   key?: string;
   error?: string;
+  fileId?: string;
 }
 
 export default function FileUpload() {
@@ -42,7 +44,6 @@ export default function FileUpload() {
 
   const handleFiles = (newFiles: File[]) => {
     const validFiles = newFiles.filter(file => {
-      // Kiểm tra kích thước (max 100MB)
       if (file.size > 100 * 1024 * 1024) {
         alert(`File ${file.name} quá lớn. Kích thước tối đa là 100MB.`);
         return false;
@@ -59,7 +60,6 @@ export default function FileUpload() {
 
     setFiles(prev => [...prev, ...uploadedFiles]);
 
-    // Upload từng file
     uploadedFiles.forEach(uploadedFile => {
       uploadFile(uploadedFile);
     });
@@ -67,15 +67,23 @@ export default function FileUpload() {
 
   const uploadFile = async (uploadedFile: UploadedFile) => {
     try {
-      const result = await uploadFileToS3(uploadedFile.file, (progress) => {
+      const init = await backendApi.createUpload(uploadedFile.file.name, uploadedFile.file.size);
+
+      await uploadFileToS3(uploadedFile.file, (progress) => {
         setFiles(prev => prev.map(f => 
           f.id === uploadedFile.id ? { ...f, progress } : f
         ));
-      });
+      }, init.uploadUrl);
 
       setFiles(prev => prev.map(f => 
         f.id === uploadedFile.id 
-          ? { ...f, status: 'success', key: result.key, progress: 100 } 
+          ? { 
+              ...f, 
+              status: 'success', 
+              key: init.fileId,
+              fileId: init.fileId,
+              progress: 100 
+            } 
           : f
       ));
     } catch (error: any) {
