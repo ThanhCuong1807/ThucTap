@@ -1,50 +1,62 @@
 # AI Sandbox for Phishing URL Detection using Deep Learning
 
-## 📌 Project Overview
+## 📖 Project Overview
 
-This project develops an AI-based Sandbox system capable of detecting phishing websites using a **1D Convolutional Neural Network (1D-CNN)** model. The system analyzes URLs and webpage content to classify websites as **Legitimate** or **Phishing**.
+This project develops an AI-based Sandbox system capable of detecting phishing websites using **Deep Learning (1D Convolutional Neural Network - 1D-CNN)**. The system analyzes URLs and webpage content to classify websites into **Legitimate** or **Phishing**.
 
-The application is deployed on **Amazon EC2**, while **Amazon CloudWatch** is used for monitoring logs and system performance.
+The AI model is deployed on **Amazon Web Services (AWS)**, specifically on **Amazon EC2**, while **Amazon CloudWatch** is used to monitor system logs and resource usage.
 
 ---
 
-## 🚀 Features
+# 🎯 Objectives
 
-- Detect phishing URLs using Deep Learning (1D-CNN)
-- Analyze webpage content (HTML, Forms, JavaScript, Links)
+- Detect phishing websites using Deep Learning.
+- Analyze webpage content before classification.
+- Deploy the AI model on AWS EC2.
+- Build a secure AI Sandbox environment.
+- Monitor the AI system using Amazon CloudWatch.
+
+---
+
+# ✨ Features
+
+- Phishing URL Detection using 1D-CNN
+- Web Content Analysis
 - Trusted Website Whitelist
-- AI Sandbox running on AWS EC2
-- CloudWatch monitoring
-- URL preprocessing and prediction
-- Easy deployment using Python
+- URL Preprocessing
+- AI Prediction
+- AWS EC2 Deployment
+- Amazon CloudWatch Monitoring
 
 ---
 
-## 🛠 Technologies Used
+# 🛠 Technologies Used
 
-### Programming Language
+## Programming Language
 
 - Python 3.12
 
-### Deep Learning
+## Deep Learning
 
-- TensorFlow
+- TensorFlow 2.21
 - Keras
 - 1D Convolutional Neural Network (1D-CNN)
 
-### Libraries
+## Python Libraries
 
 - pandas
+- numpy
 - requests
 - beautifulsoup4
 - lxml
 - tldextract
 - scikit-learn
-- numpy
 
-### Cloud Services
+## Cloud Services
 
 - Amazon EC2
+- Amazon VPC
+- Amazon EBS
 - Amazon CloudWatch
 - IAM Role
 - Security Group
@@ -52,92 +64,34 @@ The application is deployed on **Amazon EC2**, while **Amazon CloudWatch** is us
 
 ---
 
-## 📂 Project Structure
+# 📂 Project Structure
 
 ```
-MoHinhHocSau/
+ThucTap-main/
 │
 ├── dataset/
+│   ├── phishing_site_urls.csv
+│   └── top-1m.csv
 │
 ├── models/
 │   ├── tokenizer.pkl
 │   └── url_phishing_cnn.keras
 │
 ├── notebooks/
+│   └── url_phishing.ipynb
 │
 ├── predict.py
 ├── web_analyzer.py
+├── README.md
 │
-└── README.md
+└── requirements.txt
 ```
 
 ---
 
-## ⚙ Installation
+# 🧠 Deep Learning Model
 
-### Clone Repository
-
-```bash
-git clone https://github.com/your-account/your-project.git
-
-cd your-project
-```
-
-### Create Virtual Environment
-
-```bash
-python3 -m venv venv
-```
-
-Activate
-
-Linux
-
-```bash
-source venv/bin/activate
-```
-
-Windows
-
-```cmd
-venv\Scripts\activate
-```
-
----
-
-### Install Dependencies
-
-```bash
-pip install tensorflow pandas requests beautifulsoup4 lxml scikit-learn tldextract
-```
-
----
-
-## ▶ Run
-
-```bash
-python3 predict.py
-```
-
----
-
-## AWS Deployment
-
-The AI model is deployed on **Amazon EC2 Ubuntu 24.04**.
-
-Deployment includes:
-
-- Upload source code
-- Python Virtual Environment
-- TensorFlow installation
-- Model deployment
-- CloudWatch monitoring
-
----
-
-## Model Information
-
-Architecture
+Model Architecture
 
 - 1D Convolutional Neural Network (1D-CNN)
 
@@ -150,74 +104,202 @@ Output
 - Legitimate Website
 - Phishing Website
 
+Performance Evaluation
+
+- Accuracy
+- Precision
+- Recall
+- F1-score
+
 ---
 
-## Dataset
+# 📊 Dataset
 
-The model is trained using a phishing URL dataset containing:
+The model is trained using a phishing URL dataset consisting of:
 
 - Legitimate URLs
 - Phishing URLs
 
 Data preprocessing includes:
 
-- URL cleaning
+- URL Cleaning
 - Character Tokenization
 - Sequence Padding
+- Label Encoding
 
 ---
 
-## Project Workflow
+# 🌐 AI Detection Workflow
 
 ```
-URL
- │
- ▼
+User URL
+    │
+    ▼
 Whitelist Check
- │
- ▼
+    │
+    ▼
 Web Analyzer
- │
- ▼
+    │
+    ▼
 Tokenizer
- │
- ▼
+    │
+    ▼
 1D-CNN Model
- │
- ▼
+    │
+    ▼
 Prediction
- │
- ▼
+    │
+    ▼
 Legitimate / Phishing
 ```
 
 ---
 
-## Monitoring
+# ☁ AWS Deployment
 
-Amazon CloudWatch is used to monitor:
+The AI Sandbox is deployed on **Amazon Web Services (AWS)**.
 
-- AI Logs
-- CPU Usage
+## AWS Services Used
+
+- Amazon EC2
+- Amazon VPC
+- Amazon EBS
+- Security Group
+- IAM Role
+- Elastic IP
+- Amazon CloudWatch
+
+---
+
+# 🖥 EC2 Environment
+
+| Component | Description |
+|------------|-------------|
+| Operating System | Ubuntu 24.04 LTS |
+| Python | Python 3.12 |
+| Framework | TensorFlow 2.21 |
+| Cloud Platform | Amazon EC2 |
+| Storage | Amazon EBS |
+| Monitoring | Amazon CloudWatch |
+
+---
+
+# ⚙ Installation
+
+## Clone Repository
+
+```bash
+git clone https://github.com/your-organization/aws-PhanTichvaPhatHienMaDoc.git
+
+cd aws-PhanTichvaPhatHienMaDoc
+```
+
+---
+
+## Create Virtual Environment
+
+Linux
+
+```bash
+python3 -m venv venv
+
+source venv/bin/activate
+```
+
+Windows
+
+```cmd
+python -m venv venv
+
+venv\Scripts\activate
+```
+
+---
+
+## Install Dependencies
+
+```bash
+pip install tensorflow pandas requests beautifulsoup4 lxml scikit-learn tldextract
+```
+
+or
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+# ▶ Run Project
+
+```bash
+python3 predict.py
+```
+
+---
+
+# 📊 CloudWatch Monitoring
+
+Amazon CloudWatch is used to monitor the AI Sandbox.
+
+Collected Metrics
+
+- CPU Utilization
 - Memory Usage
 - Disk Usage
-- Network Usage
+- Network Traffic
+- AI Application Logs
 
 ---
 
-## Future Improvements
+# 🏗 AWS Architecture
 
-- REST API integration
-- Docker deployment
-- Kubernetes support
-- Real-time phishing detection
+```
+                 Internet
+                     │
+                     ▼
+             Security Group
+                     │
+                     ▼
+          Amazon EC2 (Ubuntu 24.04)
+                     │
+      ┌──────────────┴──────────────┐
+      │                             │
+      ▼                             ▼
+ TensorFlow Model          Amazon CloudWatch
+      │                             │
+      └──────────────┬──────────────┘
+                     ▼
+        Phishing URL Detection
+```
+
+---
+
+# 📌 AWS Deployment Features
+
+- Deploy AI model on Amazon EC2
+- Configure Security Group
+- Configure IAM Role
+- Store project on Amazon EBS
+- Monitor AI logs using Amazon CloudWatch
+- Support scalable cloud deployment
+
+---
+
+# 🚀 Future Improvements
+
+- REST API Integration
+- Docker Deployment
+- Kubernetes Deployment
 - Browser Extension
+- Real-time Phishing Detection
+- Automatic Model Retraining
 
 ---
 
-## Author
+# 👨‍💻 Author
 
-Nguyễn Lê Thanh Cường
+**Nguyễn Lê Thanh Cường**
 
 HUTECH University
 
@@ -225,6 +307,6 @@ Major: Information Security
 
 ---
 
-## License
+# 📄 License
 
 This project is developed for educational and research purposes.
